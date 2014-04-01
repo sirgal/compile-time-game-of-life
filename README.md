@@ -1,7 +1,7 @@
 compile-time-game-of-life
 =========================
 
-True GoL using only metaprogramming in C++
+True GoL using only metaprogramming in C++11
 
 Usage:
 - edit 'dimension', 'iteration' and 'start' constants appropriately
