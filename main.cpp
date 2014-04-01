@@ -6,9 +6,10 @@ using namespace std;
 struct O { };   // dead
 struct X { };   // alive
 
-const int dimension  = 5;
-const int iterations = 5; //zero-indexed, actually
+const int dimension  = 5; // height\length of the field
+const int iterations = 5; // begin from 0
 
+// starting level
 using start = tuple<
                     O, O, O, O, O,
                     O, O, X, O, O,
@@ -17,6 +18,7 @@ using start = tuple<
                     O, O, O, O, O
                     >;
 
+// helper functions to determine whether the point is alive or dead
 template <typename T>
 constexpr bool is_alive();
 
@@ -28,18 +30,7 @@ template<>
 constexpr bool is_alive<X>()
 { return true; }
 
-template <typename tuple, int N>
-struct tuple_counter
-{
-    constexpr static int value = is_alive<typename tuple_element<N, tuple>::type>() + tuple_counter<tuple, N-1>::value;
-};
-
-template <typename tuple>
-struct tuple_counter<tuple, 0>
-{
-    constexpr static int value = is_alive<typename tuple_element<0, tuple>::type>();
-};
-
+// print O or X, based on element type
 template <typename Type>
 void print();
 
@@ -51,6 +42,7 @@ template<>
 void print<X>()
 { cout << "X"; }
 
+// helper functions to determine borders of a gaming field
 constexpr bool is_top( int dim, int N ) {
     return (N - dim) < 0;
 }
@@ -64,6 +56,20 @@ constexpr bool is_right( int dim, int N ) {
     return (N + 1) % dim == 0;
 }
 
+// count alive elements in a tuple
+template <typename tuple, int N>
+struct tuple_counter
+{
+    constexpr static int value = is_alive<typename tuple_element<N, tuple>::type>() + tuple_counter<tuple, N-1>::value;
+};
+
+template <typename tuple>
+struct tuple_counter<tuple, 0>
+{
+    constexpr static int value = is_alive<typename tuple_element<0, tuple>::type>();
+};
+
+// print the game field nicely
 template <typename tuple, int dim, int N>
 struct Printer {
     static void print_tuple()
@@ -82,14 +88,15 @@ struct Printer<tuple, dim, 0> {
     }
 };
 
-template <typename Point, typename neighbors>
-struct NextPointState
+// game rules that determine next point state
+template <typename point, typename neighbors>
+struct calc_next_point_state
 {
     constexpr static int neighbor_count = 8 - 1;
 
     using type =
         typename conditional <
-            is_alive<Point>(),
+            is_alive<point>(),
             typename conditional <
                 (tuple_counter<neighbors, neighbor_count>::value > 3)
                     || (tuple_counter<neighbors, neighbor_count>::value < 2),
@@ -104,21 +111,16 @@ struct NextPointState
         >::type;
 };
 
+// the main level grid
 template <int dim, typename initial_state>
-struct Field
+struct level
 {
     static_assert( dim*dim == tuple_size<initial_state>::value, "Dimension mismatch!" );
 
     constexpr static int point_count = dim*dim;
 
-    using points = initial_state;
-
     template <int N>
-    using point = typename tuple_element<N, points>::type;
-
-    template <int N>
-    constexpr bool alive()
-    { return is_alive<point<N>>(); }
+    using point = typename tuple_element<N, initial_state>::type;
 
     template <int N>
     using neighbors = tuple
@@ -142,48 +144,52 @@ struct Field
     >;
 
     template <int N>
-    using next_point_state = typename NextPointState<point<N>, neighbors<N>>::type;
+    using next_point_state = typename calc_next_point_state<point<N>, neighbors<N>>::type;
 };
 
+// concatenate multiple tuples into one
 template <typename... tuples>
 struct my_tuple_cat
 {
     typedef decltype( tuple_cat( declval<tuples>() ... ) ) type;
 };
 
+// get the next gaming field tuple
 template<int dim, typename field, int iter>
 struct next_field_state
 {
     template<int N>
-    using point = Field<dim, field>::next_point_state<N>;
+    using point = level<dim, field>::next_point_state<N>;
 
-    using next_state = typename my_tuple_cat< tuple< point<dim*dim - iter> >, typename next_field_state<dim, field, iter-1>::next_state >::type;
+    using next_field = typename my_tuple_cat< tuple< point<dim*dim - iter> >, typename next_field_state<dim, field, iter-1>::next_field >::type;
 };
 
 template<int dim, typename field>
 struct next_field_state<dim, field, 1>
 {
     template<int N>
-    using point = Field<dim, field>::next_point_state<N>;
+    using point = level<dim, field>::next_point_state<N>;
 
-    using next_state = tuple< point<dim*dim - 1> >;
+    using next_field = tuple< point<dim*dim - 1> >;
 };
 
+// calculate next game field 'iter' times based on 'field' with 'dim' height
 template <int dim, typename field, int iters>
 struct game_process
 {
-    using next_state = typename game_process<dim, typename next_field_state<dim, field, dim*dim>::next_state, iters-1>::next_state;
+    using result = typename game_process<dim, typename next_field_state<dim, field, dim*dim>::next_field, iters-1>::result;
 };
 
 template <int dim, typename field>
 struct game_process<dim, field, 0>
 {
-    using next_state = typename next_field_state<dim, field, dim*dim>::next_state;
+    using result = typename next_field_state<dim, field, dim*dim>::next_field;
 };
 
+// prints the resulting tuple
 int main()
 {
-    Printer<game_process< dimension, start, iterations >::next_state, dimension, dimension*dimension - 1>::print_tuple();
+    Printer<game_process< dimension, start, iterations >::result, dimension, dimension*dimension - 1>::print_tuple();
 
     cout << endl;
 
