@@ -43,18 +43,14 @@ void print<X>()
 { cout << "X"; }
 
 // helper functions to determine borders of a gaming field
-constexpr bool is_top( int dim, int N ) {
-    return (N - dim) < 0;
-}
-constexpr bool is_bot( int dim, int N ) {
-    return (N + dim) >= dim*dim;
-}
-constexpr bool is_left( int dim, int N ) {
-    return N % dim == 0;
-}
-constexpr bool is_right( int dim, int N ) {
-    return (N + 1) % dim == 0;
-}
+constexpr bool is_top( int dim, int N )
+{ return (N - dim) < 0; }
+constexpr bool is_bot( int dim, int N )
+{ return (N + dim) >= dim*dim; }
+constexpr bool is_left( int dim, int N )
+{ return N % dim == 0; }
+constexpr bool is_right( int dim, int N )
+{ return (N + 1) % dim == 0; }
 
 // count alive elements in a tuple
 template <typename tuple, int N>
@@ -147,15 +143,15 @@ struct level
     using next_point_state = typename calc_next_point_state<point<N>, neighbors<N>>::type;
 };
 
-// concatenate multiple tuples into one
-template <typename... tuples>
+// concatenate two tuples into one
+template <typename tuple_1, typename tuple_2>
 struct my_tuple_cat
 {
-    typedef decltype( tuple_cat( declval<tuples>() ... ) ) type;
+    typedef decltype( tuple_cat( declval<tuple_1>(), declval<tuple_2>() ) ) type;
 };
 
 // get the next gaming field tuple
-template<int dim, typename field, int iter>
+template <int dim, typename field, int iter>
 struct next_field_state
 {
     template<int N>
@@ -164,7 +160,7 @@ struct next_field_state
     using next_field = typename my_tuple_cat< tuple< point<dim*dim - iter> >, typename next_field_state<dim, field, iter-1>::next_field >::type;
 };
 
-template<int dim, typename field>
+template <int dim, typename field>
 struct next_field_state<dim, field, 1>
 {
     template<int N>
