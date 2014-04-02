@@ -6,8 +6,8 @@ using namespace std;
 struct O { };   // dead
 struct X { };   // alive
 
-const int dimension  = 5;   // height\length of the field
-const int iterations = 20;  // iterations of the game
+const unsigned dimension  { 5  };  // height\length of the field
+const unsigned iterations { 20 };  // iterations of the game
 
 // starting level
 using start = tuple<
@@ -56,7 +56,8 @@ constexpr bool is_right( int dim, int N )
 template <typename tuple, int N>
 struct tuple_counter
 {
-    constexpr static int value = is_alive<typename tuple_element<N, tuple>::type>() + tuple_counter<tuple, N-1>::value;
+    constexpr static int value = is_alive<typename tuple_element<N, tuple>::type>()
+                                 + tuple_counter<tuple, N-1>::value;
 };
 
 template <typename tuple>
@@ -147,7 +148,7 @@ struct level
 template <typename tuple_1, typename tuple_2>
 struct my_tuple_cat
 {
-    typedef decltype( tuple_cat( declval<tuple_1>(), declval<tuple_2>() ) ) type;
+    using result = decltype( tuple_cat( declval<tuple_1>(), declval<tuple_2>() ) );
 };
 
 // get the next gaming field tuple
@@ -157,7 +158,10 @@ struct next_field_state
     template<int N>
     using point = level<dim, field>::next_point_state<N>;
 
-    using next_field = typename my_tuple_cat< tuple< point<dim*dim - iter> >, typename next_field_state<dim, field, iter-1>::next_field >::type;
+    using next_field = typename my_tuple_cat <
+                                    tuple< point<dim*dim - iter> >,
+                                    typename next_field_state<dim, field, iter-1>::next_field
+                                >::result;
 };
 
 template <int dim, typename field>
