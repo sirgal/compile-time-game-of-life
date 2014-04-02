@@ -6,8 +6,6 @@ using namespace std;
 struct O { };   // dead
 struct X { };   // alive
 
-const unsigned dimension  { 5  };  // height\length of the field
-const unsigned iterations { 20 };  // iterations of the game
 
 // starting level
 using start = tuple<
@@ -17,6 +15,14 @@ using start = tuple<
                     O, X, X, X, O,
                     O, O, O, O, O
                     >;
+// field dimensions
+const int width  = 5;
+const int height = 5;
+// iterations of the game
+const int iterations = 20;
+
+const int point_count = width*height;
+static_assert( point_count == tuple_size<start>(), "Dimension mismatch!" );
 
 // helper functions to determine whether the point is alive or dead
 template <typename T>
@@ -43,14 +49,14 @@ void print<X>()
 { cout << "X"; }
 
 // helper functions to determine borders of a gaming field
-constexpr bool is_top( int dim, int N )
-{ return (N - dim) < 0; }
-constexpr bool is_bot( int dim, int N )
-{ return (N + dim) >= dim*dim; }
-constexpr bool is_left( int dim, int N )
-{ return N % dim == 0; }
-constexpr bool is_right( int dim, int N )
-{ return (N + 1) % dim == 0; }
+constexpr bool is_top( int N )
+{ return N < width; }
+constexpr bool is_bot( int N )
+{ return (N + width) >= point_count; }
+constexpr bool is_left( int N )
+{ return N % width == 0; }
+constexpr bool is_right( int N )
+{ return (N + 1) % width == 0; }
 
 // count alive elements in a tuple
 template <typename tuple, int N>
@@ -67,18 +73,18 @@ struct tuple_counter<tuple, 0>
 };
 
 // print the game field nicely
-template <typename tuple, int dim, int N>
+template <typename tuple, int N>
 struct Printer {
     static void print_tuple()
     {
-        Printer<tuple, dim, N-1>::print_tuple();
-        if( N % dim == 0 ) cout << endl;
+        Printer<tuple, N-1>::print_tuple();
+        if( N % width == 0 ) cout << endl;
         print<typename tuple_element<N, tuple>::type>();
     }
 };
 
-template <typename tuple, int dim>
-struct Printer<tuple, dim, 0> {
+template <typename tuple>
+struct Printer<tuple, 0> {
     static void print_tuple()
     {
         print<typename tuple_element<0, tuple>::type>();
@@ -109,13 +115,9 @@ struct calc_next_point_state
 };
 
 // the main level grid
-template <int dim, typename initial_state>
+template <typename initial_state>
 struct level
 {
-    static_assert( dim*dim == tuple_size<initial_state>::value, "Dimension mismatch!" );
-
-    constexpr static int point_count = dim*dim;
-
     template <int N>
     using point = typename tuple_element<N, initial_state>::type;
 
@@ -123,21 +125,21 @@ struct level
     using neighbors = tuple
     <
     // left
-    point< is_left(dim, N) ? (N + dim - 1) : (N - 1) >,
+    point< is_left(N) ? (N + width - 1) : (N - 1) >,
     // right
-    point< is_right(dim, N) ? (N - dim + 1) : (N + 1) >,
+    point< is_right(N) ? (N - width + 1) : (N + 1) >,
     // top
-    point< is_top(dim, N) ? (point_count - dim + N) : (N - dim) >,
+    point< is_top(N) ? (point_count - width + N) : (N - width) >,
     // top-left
-    point< (N == 0) ? (point_count - 1) : (is_left(dim, N) ? (N - 1) : ( is_top(dim, N) ? (point_count - dim + N - 1) : (N - dim - 1)) ) >,
+    point< (N == 0) ? (point_count - 1) : (is_left(N) ? (N - 1) : ( is_top(N) ? (point_count - width + N - 1) : (N - width - 1)) ) >,
     // top-right
-    point< (N == (dim-1)) ? (point_count - dim) : (is_right(dim, N) ? (N - dim*2 + 1) : ( is_top(dim, N) ? (point_count - dim + N + 1) : (N - dim + 1)) ) >,
+    point< (N == (width-1)) ? (point_count - width) : (is_right(N) ? (N - width*2 + 1) : ( is_top(N) ? (point_count - width + N + 1) : (N - width + 1)) ) >,
     // bottom
-    point< (N + dim >= point_count) ? (N + dim - point_count) : (N + dim) >,
+    point< (N + width >= point_count) ? (N + width - point_count) : (N + width) >,
     // bottom-left
-    point< (N == (point_count - dim)) ? (dim - 1) : (is_left(dim, N) ? (N + dim*2 - 1) : (is_bot(dim, N) ? (N + dim - point_count - 1) : (N + dim - 1))) >,
+    point< (N == (point_count - width)) ? (width - 1) : (is_left(N) ? (N + width*2 - 1) : (is_bot(N) ? (N + width - point_count - 1) : (N + width - 1))) >,
     // bottom-right
-    point< (N == (point_count - 1)) ? (0) : ((N+1) % dim == 0 ? (N+1) : (is_bot(dim, N) ? (N + dim - point_count + 1) : (N+dim+1)) )>
+    point< (N == (point_count - 1)) ? (0) : ((N+1) % width == 0 ? (N+1) : (is_bot(N) ? (N + width - point_count + 1) : (N+width+1)) )>
     >;
 
     template <int N>
@@ -148,56 +150,56 @@ struct level
 template <typename tuple_1, typename tuple_2>
 struct my_tuple_cat
 {
-    using result = decltype( tuple_cat( declval<tuple_1>(), declval<tuple_2>() ) );
+    using result = decltype( tuple_cat( declval<tuple_1>(), declval<tuple_2>()  ) );
 };
 
 // get the next gaming field tuple
-template <int dim, typename field, int iter>
+template <typename field, int iter>
 struct next_field_state
 {
     template<int N>
-    using point = level<dim, field>::next_point_state<N>;
+    using point = level<field>::next_point_state<N>;
 
     using next_field = typename my_tuple_cat <
-                                    tuple< point<dim*dim - iter> >,
-                                    typename next_field_state<dim, field, iter-1>::next_field
+                                    tuple< point<point_count - iter> >,
+                                    typename next_field_state<field, iter-1>::next_field
                                 >::result;
 };
 
-template <int dim, typename field>
-struct next_field_state<dim, field, 1>
+template <typename field>
+struct next_field_state<field, 1>
 {
     template<int N>
-    using point = level<dim, field>::next_point_state<N>;
+    using point = level<field>::next_point_state<N>;
 
-    using next_field = tuple< point<dim*dim - 1> >;
+    using next_field = tuple< point<point_count - 1> >;
 };
 
 // calculate the game and print it
-template <int dim, typename field, int iters>
+template <typename field, int iters>
 struct game_process
 {
     static void print()
     {
-        Printer< field, dim, dim*dim - 1 >::print_tuple();
+        Printer< field, point_count - 1 >::print_tuple();
         cout << endl << endl;
-        game_process< dim, typename next_field_state<dim, field, dim*dim>::next_field, iters-1 >::print();
+        game_process< typename next_field_state<field, point_count>::next_field, iters-1 >::print();
     }
 };
 
-template <int dim, typename field>
-struct game_process<dim, field, 0>
+template <typename field>
+struct game_process<field, 0>
 {
     static void print()
     {
-        Printer< field, dim, dim*dim - 1 >::print_tuple();
+        Printer< field, point_count - 1 >::print_tuple();
         cout << endl;
     }
 };
 
 int main()
 {
-    game_process< dimension, start, iterations >::print();
+    game_process< start, iterations >::print();
 
     return 0;
 }
