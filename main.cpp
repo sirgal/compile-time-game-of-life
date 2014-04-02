@@ -6,8 +6,8 @@ using namespace std;
 struct O { };   // dead
 struct X { };   // alive
 
-const int dimension  = 5; // height\length of the field
-const int iterations = 5; // begin from 0
+const int dimension  = 5;   // height\length of the field
+const int iterations = 20;  // iterations of the game
 
 // starting level
 using start = tuple<
@@ -169,25 +169,31 @@ struct next_field_state<dim, field, 1>
     using next_field = tuple< point<dim*dim - 1> >;
 };
 
-// calculate next game field 'iter' times based on 'field' with 'dim' height
+// calculate the game and print it
 template <int dim, typename field, int iters>
 struct game_process
 {
-    using result = typename game_process<dim, typename next_field_state<dim, field, dim*dim>::next_field, iters-1>::result;
+    static void print()
+    {
+        Printer< field, dim, dim*dim - 1 >::print_tuple();
+        cout << endl << endl;
+        game_process< dim, typename next_field_state<dim, field, dim*dim>::next_field, iters-1 >::print();
+    }
 };
 
 template <int dim, typename field>
 struct game_process<dim, field, 0>
 {
-    using result = typename next_field_state<dim, field, dim*dim>::next_field;
+    static void print()
+    {
+        Printer< field, dim, dim*dim - 1 >::print_tuple();
+        cout << endl;
+    }
 };
 
-// prints the resulting tuple
 int main()
 {
-    Printer<game_process< dimension, start, iterations >::result, dimension, dimension*dimension - 1>::print_tuple();
-
-    cout << endl;
+    game_process< dimension, start, iterations >::print();
 
     return 0;
 }
