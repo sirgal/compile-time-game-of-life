@@ -6,7 +6,6 @@ using namespace std;
 struct O { };   // dead
 struct X { };   // alive
 
-
 // starting level
 using start = tuple<
                     O, O, O, O, O,
@@ -95,19 +94,19 @@ struct Printer<tuple, 0> {
 template <typename point, typename neighbors>
 struct calc_next_point_state
 {
-    constexpr static int neighbor_count = 8 - 1;
+    constexpr static int neighbor_cnt =
+            tuple_counter<neighbors, tuple_size<neighbors>() - 1>::value;
 
     using type =
         typename conditional <
             is_alive<point>(),
             typename conditional <
-                (tuple_counter<neighbors, neighbor_count>::value > 3)
-                    || (tuple_counter<neighbors, neighbor_count>::value < 2),
+                (neighbor_cnt > 3) || (neighbor_cnt < 2),
                 O,
                 X
             >::type,
             typename conditional <
-                (tuple_counter<neighbors, neighbor_count>::value == 3),
+                (neighbor_cnt == 3),
                 X,
                 O
             >::type
@@ -124,6 +123,7 @@ struct level
     template <int N>
     using neighbors = tuple
     <
+    // maybe these aren't completely correct, needs checking
     // left
     point< is_left(N) ? (N + width - 1) : (N - 1) >,
     // right
