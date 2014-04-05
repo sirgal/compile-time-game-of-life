@@ -1,19 +1,26 @@
 #include <iostream>
 #include <tuple>
 
-using namespace std;
+using std::tuple;
 
-struct O { };   // dead
-struct X { };   // alive
+struct O {
+    static const bool alive = false;
+    static void print() { std::cout << "O"; }
+};
+struct X {
+    static const bool alive = true;
+    static void print() { std::cout << "X"; }
+};
 
 // starting level
-using start = tuple<
-                    O, O, O, O, O,
-                    O, O, X, O, O,
-                    O, O, O, X, O,
-                    O, X, X, X, O,
-                    O, O, O, O, O
-                    >;
+typedef tuple<
+  O, O, O, O, O,
+	O, O, X, O, O,
+	O, O, O, X, O,
+	O, X, X, X, O,
+	O, O, O, O, O
+> start;
+
 // field dimensions
 const int width  = 5;
 const int height = 5;
@@ -21,54 +28,34 @@ const int height = 5;
 const int iterations = 20;
 
 const int point_count = width*height;
-static_assert( point_count == tuple_size<start>(), "Dimension mismatch!" );
-
-// helper functions to determine whether the point is alive or dead
-template <typename T>
-constexpr bool is_alive();
-
-template<>
-constexpr bool is_alive<O>()
-{ return false; }
-
-template<>
-constexpr bool is_alive<X>()
-{ return true; }
-
-// print O or X, based on element type
-template <typename Type>
-void print();
-
-template<>
-void print<O>()
-{ cout << "O"; }
-
-template<>
-void print<X>()
-{ cout << "X"; }
+static_assert( point_count == std::tuple_size<start>::value, "Dimension mismatch!" );
 
 // helper functions to determine borders of a gaming field
-constexpr bool is_top( int N )
-{ return N < width; }
-constexpr bool is_bot( int N )
-{ return (N + width) >= point_count; }
-constexpr bool is_left( int N )
-{ return N % width == 0; }
-constexpr bool is_right( int N )
-{ return (N + 1) % width == 0; }
+template <int N> struct is_top {
+    static const bool value = N < width;
+};
+template <int N> struct is_bot {
+    static const bool value = N + width >= point_count;
+};
+template <int N> struct is_left {
+    static const bool value = N % width == 0;
+};
+template <int N> struct is_right {
+    static const bool value = (N + 1) % width == 0;
+};
 
 // count alive elements in a tuple
 template <typename tuple, int N>
 struct tuple_counter
 {
-    constexpr static int value = is_alive<typename tuple_element<N, tuple>::type>()
+    static const int value = std::tuple_element<N, tuple>::type::alive
                                  + tuple_counter<tuple, N-1>::value;
 };
 
 template <typename tuple>
 struct tuple_counter<tuple, 0>
 {
-    constexpr static int value = is_alive<typename tuple_element<0, tuple>::type>();
+    static const int value = std::tuple_element<0, tuple>::type::alive ? 1 : 0;
 };
 
 // print the game field nicely
@@ -77,8 +64,8 @@ struct Printer {
     static void print_tuple()
     {
         Printer<tuple, N-1>::print_tuple();
-        if( N % width == 0 ) cout << endl;
-        print<typename tuple_element<N, tuple>::type>();
+        if( N % width == 0 ) std::cout << std::endl;
+        std::tuple_element<N, tuple>::type::print();
     }
 };
 
@@ -86,7 +73,7 @@ template <typename tuple>
 struct Printer<tuple, 0> {
     static void print_tuple()
     {
-        print<typename tuple_element<0, tuple>::type>();
+        std::tuple_element<0, tuple>::type::print();
     }
 };
 
@@ -94,85 +81,78 @@ struct Printer<tuple, 0> {
 template <typename point, typename neighbors>
 struct calc_next_point_state
 {
-    constexpr static int neighbor_cnt =
-            tuple_counter<neighbors, tuple_size<neighbors>() - 1>::value;
+    static const int neighbor_cnt =
+            tuple_counter<neighbors, std::tuple_size<neighbors>::value - 1>::value;
 
-    using type =
-        typename conditional <
-            is_alive<point>(),
-            typename conditional <
-                (neighbor_cnt > 3) || (neighbor_cnt < 2),
-                O,
-                X
-            >::type,
-            typename conditional <
-                (neighbor_cnt == 3),
-                X,
-                O
-            >::type
-        >::type;
+    typedef typename std::conditional <
+        point::alive,
+        typename std::conditional <
+            (neighbor_cnt > 3) || (neighbor_cnt < 2),
+            O,
+            X
+        >::type,
+        typename std::conditional <
+            (neighbor_cnt == 3),
+            X,
+            O
+        >::type
+    >::type type;
 };
 
 // the main level grid
-template <typename initial_state>
+template <typename initial_state, int N>
 struct level
 {
-    template <int N>
-    using point = typename tuple_element<N, initial_state>::type;
+    typedef typename std::tuple_element<N, initial_state>::type point;
 
-    template <int N>
-    using neighbors = tuple
+    typedef tuple
     <
     // maybe these aren't completely correct, needs checking
     // left
-    point< is_left(N) ? (N + width - 1) : (N - 1) >,
+    typename level<initial_state, is_left<N>::value ? (N + width - 1) : (N - 1)>::point,
     // right
-    point< is_right(N) ? (N - width + 1) : (N + 1) >,
+    typename level<initial_state, is_right<N>::value ? (N - width + 1) : (N + 1)>::point,
     // top
-    point< is_top(N) ? (point_count - width + N) : (N - width) >,
+    typename level<initial_state, is_top<N>::value ? (point_count - width + N) : (N - width)>::point,
     // top-left
-    point< (N == 0) ? (point_count - 1) : (is_left(N) ? (N - 1) : ( is_top(N) ? (point_count - width + N - 1) : (N - width - 1)) ) >,
+    typename level<initial_state, (N == 0) ? (point_count - 1) : (is_left<N>::value ? (N - 1) : (is_top<N>::value ? (point_count - width + N - 1) : (N - width - 1)))>::point,
     // top-right
-    point< (N == (width-1)) ? (point_count - width) : (is_right(N) ? (N - width*2 + 1) : ( is_top(N) ? (point_count - width + N + 1) : (N - width + 1)) ) >,
+    typename level<initial_state, (N == (width - 1)) ? (point_count - width) : (is_right<N>::value ? (N - width * 2 + 1) : (is_top<N>::value ? (point_count - width + N + 1) : (N - width + 1)))>::point,
     // bottom
-    point< (N + width >= point_count) ? (N + width - point_count) : (N + width) >,
+    typename level<initial_state, (N + width >= point_count) ? (N + width - point_count) : (N + width)>::point,
     // bottom-left
-    point< (N == (point_count - width)) ? (width - 1) : (is_left(N) ? (N + width*2 - 1) : (is_bot(N) ? (N + width - point_count - 1) : (N + width - 1))) >,
+    typename level<initial_state, (N == (point_count - width)) ? (width - 1) : (is_left<N>::value ? (N + width * 2 - 1) : (is_bot<N>::value ? (N + width - point_count - 1) : (N + width - 1)))>::point,
     // bottom-right
-    point< (N == (point_count - 1)) ? (0) : ((N+1) % width == 0 ? (N+1) : (is_bot(N) ? (N + width - point_count + 1) : (N+width+1)) )>
-    >;
+    typename level<initial_state, (N == (point_count - 1)) ? (0) : ((N + 1) % width == 0 ? (N + 1) : (is_bot<N>::value ? (N + width - point_count + 1) : (N + width + 1)))>::point
+    > neighbors;
 
-    template <int N>
-    using next_point_state = typename calc_next_point_state<point<N>, neighbors<N>>::type;
+    typedef typename calc_next_point_state<
+	    typename level<initial_state, N>::point,
+	    typename level<initial_state, N>::neighbors
+    >::type next_point_state;
 };
 
 // concatenate two tuples into one
 template <typename tuple_1, typename tuple_2>
 struct my_tuple_cat
 {
-    using result = decltype( tuple_cat( declval<tuple_1>(), declval<tuple_2>()  ) );
+    typedef decltype(tuple_cat(std::declval<tuple_1>(), std::declval<tuple_2>())) result;
 };
 
 // get the next gaming field tuple
 template <typename field, int iter>
 struct next_field_state
 {
-    template<int N>
-    using point = level<field>::next_point_state<N>;
-
-    using next_field = typename my_tuple_cat <
-                                    tuple< point<point_count - iter> >,
-                                    typename next_field_state<field, iter-1>::next_field
-                                >::result;
+    typedef typename my_tuple_cat <
+		tuple< typename level<field, point_count - iter>::next_point_state >,
+               typename next_field_state<field, iter-1>::next_field
+	>::result next_field;
 };
 
 template <typename field>
 struct next_field_state<field, 1>
 {
-    template<int N>
-    using point = level<field>::next_point_state<N>;
-
-    using next_field = tuple< point<point_count - 1> >;
+    typedef tuple< typename level<field, point_count - 1>::next_point_state> next_field;
 };
 
 // calculate the game and print it
@@ -182,7 +162,7 @@ struct game_process
     static void print()
     {
         Printer< field, point_count - 1 >::print_tuple();
-        cout << endl << endl;
+        std::cout << std::endl << std::endl;
         game_process< typename next_field_state<field, point_count>::next_field, iters-1 >::print();
     }
 };
@@ -193,13 +173,12 @@ struct game_process<field, 0>
     static void print()
     {
         Printer< field, point_count - 1 >::print_tuple();
-        cout << endl;
+        std::cout << std::endl;
     }
 };
 
 int main()
 {
     game_process< start, iterations >::print();
-
     return 0;
 }
