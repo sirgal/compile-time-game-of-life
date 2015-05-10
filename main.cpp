@@ -158,7 +158,7 @@ template <typename field, int iter>
 struct next_field_state
 {
     template<int N>
-    using point = level<field>::next_point_state<N>;
+    using point = typename level<field>::template next_point_state<N>;
 
     using next_field = typename my_tuple_cat <
                                     tuple< point<point_count - iter> >,
@@ -170,7 +170,7 @@ template <typename field>
 struct next_field_state<field, 1>
 {
     template<int N>
-    using point = level<field>::next_point_state<N>;
+    using point = typename level<field>::template next_point_state<N>;
 
     using next_field = tuple< point<point_count - 1> >;
 };
